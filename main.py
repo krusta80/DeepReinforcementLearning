@@ -1,7 +1,14 @@
 # -*- coding: utf-8 -*-
 # %matplotlib inline
 
+import config
+import matplotlib
+######## SUPPRESS VISUAL PLOTS IF SPECIFIED #######
+if config.XDISPLAY == False:
+    matplotlib.use('Agg')
+
 import numpy as np
+
 np.set_printoptions(suppress=True)
 
 from shutil import copyfile
