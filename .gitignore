@@ -104,7 +104,7 @@
 analysis/
 archive/
 ipynb/
-run_archive/
+run_archive/logs/*
 code_archive/
 games/archive/
 *.pyc
