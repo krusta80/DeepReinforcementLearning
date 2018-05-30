@@ -6,7 +6,9 @@ from player import Player
 from random import shuffle
 import functools
 
+
 class Game:
+    name = 'Splendor'
     board = None
     move = -1
     moves_made = []
@@ -14,14 +16,12 @@ class Game:
     player_count = -1
     players = []
 
-    def __init__(self, agents):
+    def __init__(self, player_count):
         self.player_count = 0
         self.players = []
-        for agent in agents:
-            player = Player(self.player_count, agent.name)
-            player.add_agent(agent)
+        for player in range(0, player_count):
+            self.players.append(Player(self.player_count, player))
             self.player_count += 1
-            self.players.append(player)
         self.board = Board(self.player_count)
         self.reset()
 
@@ -39,41 +39,15 @@ class Game:
     def log_moves(self):
         print(self.moves_made)
 
-    def play_until_end(self):
-        while self.move < 200 and not self.is_over():
-            player = self.get_current_player()
-            decision = player.agent.make_move(
-                self.board, self.players, self.move % self.player_count, self.get_moves(self.board, player))
-            self.moves_made.append({
-                "turn": self.move,
-                "player": self.gather_player_stats(player),
-                "move": decision
-            })
-            self.execute_decision(decision)
-            self.move += 1
-        if self.move >= 200:
-            return {
-                "moves": self.move,
-                "winner": "TIE!"
-            }
-        return self.get_outcome()
-
-    def play_until_player_id(self, id):
-        game_states = []
-
-        while self.move < 200 and not self.is_over() and self.get_current_player().id != id:
-            player = self.get_current_player()
-            decision = player.agent.make_move(
-                self.board, self.players, self.move % self.player_count, self.get_moves(self.board, player))
-            self.moves_made.append({
-                "turn": self.move,
-                "player": self.gather_player_stats(player),
-                "move": decision
-            })
-            self.execute_decision(decision)
-            game_states.append(self.get_game_state(id))
-            self.move += 1
-        return game_states
+    def step(self, decision):
+        player = self.get_current_player()
+        self.moves_made.append({
+            "turn": self.move,
+            "player": self.gather_player_stats(player),
+            "move": decision
+        })
+        self.execute_decision(decision)
+        self.move += 1
 
     def is_over(self):
         return self.move % self.player_count == 0 and self.get_top_score() >= 15
