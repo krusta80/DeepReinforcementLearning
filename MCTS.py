@@ -40,15 +40,7 @@ class MCTS:
 
         while not current_node.is_leaf():
             lg.logger_mcts.info('PLAYER TURN...%d', current_node.state.player_turn)
-
-            if current_node == self.root:
-                epsilon = EPSILON
-                nu = np.random.dirichlet([ALPHA] * len(current_node.children))
-            else:
-                epsilon = 0
-                nu = [0] * len(current_node.children)
-
-            chosen_child = self._get_chosen_child(current_node.children, self.cpuct, epsilon, nu)
+            chosen_child = self._choose_child(current_node.children)
             new_state, value, done = current_node.state.take_action(chosen_child['action'])
             current_node = chosen_child['node']
             path_to_leaf.append(chosen_child['node'])
@@ -83,21 +75,20 @@ class MCTS:
     def add_node(self, node):
         self.tree[node.id] = node
 
-    def _get_chosen_child(self, children, cpuct, epsilon, nu):
+    def _choose_child(self, children):
         N_p = sum([child['node'].stats['N'] for child in children])
         max_Q_plus_U = -99999
         chosen_child = None
 
         for i, (child) in enumerate(children):
             action = child['action']
-            P_i, N_i, W_i, Q_i = self._get_child_stats(child)
-            U_i = cpuct * ((1 - epsilon) * P_i + epsilon * nu[i]) * np.sqrt(N_p) / (1 + N_i)
+            P_i, N_i, W_i, Q_i = self._get_child_stats(child, len(children) - 1)
+            U_i = self.cpuct * P_i * np.sqrt(N_p) / (1 + N_i)  # Using progressive strategy as per http://tiny.cc/gjg6ty
 
             lg.logger_mcts.info(
-                'action: %d ... N = %d, P = %f, nu = %f, adjP = %f, W = %f, Q = %f, U = %f, Q+U = %f'
+                'action: %d ... N = %d, P = %f, nu = %f, W = %f, Q = %f, U = %f, Q+U = %f'
                 , action, N_i, np.round(P_i, 6), np.round(nu[i], 6),
-                ((1 - epsilon) * P_i + epsilon * nu[i])
-                , np.round(W_i, 6), np.round(Q_i, 6), np.round(U_i, 6), np.round(Q_i + U_i, 6))
+                np.round(W_i, 6), np.round(Q_i, 6), np.round(U_i, 6), np.round(Q_i + U_i, 6))
 
             if Q_i + U_i > max_Q_plus_U:
                 max_Q_plus_U = Q_i + U_i
@@ -105,8 +96,11 @@ class MCTS:
         lg.logger_mcts.info('action with highest Q + U...%d', chosen_child['action'])
         return chosen_child
 
-    def _get_child_stats(self, child):
-        return child['P'], \
+    def _get_child_stats(self, child, number_of_siblings):
+        P = (1 - EPSILON) * child['P'] + EPSILON * np.random.dirichlet([ALPHA] * len(number_of_siblings + 1)) \
+            if child['node'] == self.root else child['P']
+
+        return P, \
                child['node'].stats['N'], \
                child['node'].stats['W'], \
                child['node'].stats['W'] / child['node'].stats['N']
