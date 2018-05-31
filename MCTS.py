@@ -1,6 +1,7 @@
 import numpy as np
 from config import ALPHA, EPSILON
 import loggers as lg
+import math
 
 
 class Node:
@@ -77,12 +78,13 @@ class MCTS:
 
     def _choose_child(self, children):
         N_p = sum([child['node'].stats['N'] for child in children])
-        max_Q_plus_U = -99999
+        max_Q_plus_U = -math.inf
         chosen_child = None
 
         for i, (child) in enumerate(children):
             action = child['action']
-            P_i, N_i, W_i, Q_i = self._get_child_stats(child, len(children) - 1)
+            P_i, N_i, W_i = self._get_child_stats(child, len(children) - 1)
+            Q_i = W_i / N_i
             U_i = self.cpuct * P_i * np.sqrt(N_p) / (1 + N_i)  # Using progressive strategy as per http://tiny.cc/gjg6ty
 
             lg.logger_mcts.info(
@@ -102,5 +104,4 @@ class MCTS:
 
         return P, \
                child['node'].stats['N'], \
-               child['node'].stats['W'], \
-               child['node'].stats['W'] / child['node'].stats['N']
+               child['node'].stats['W']
