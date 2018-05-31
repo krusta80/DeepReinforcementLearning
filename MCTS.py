@@ -54,11 +54,11 @@ class MCTS:
             path_to_leaf.append(chosen_child['node'])
 
         lg.logger_mcts.info('DONE...%d', done)
-        return current_node, value, done, path_to_leaf
+        return value, done, path_to_leaf
 
-    def back_fill(self, leaf, value, path_to_leaf):
+    def back_fill(self, value, path_to_leaf):
         lg.logger_mcts.info('------DOING BACKFILL------')
-        current_player = leaf.state.player_turn
+        current_player = path_to_leaf[-1].state.player_turn
 
         for i, (node) in path_to_leaf:
             player_turn = node.state.player_turn
@@ -79,7 +79,6 @@ class MCTS:
                                 )
             if i > 0:
                 node.state.render(lg.logger_mcts)
-        leaf.state.render(lg.logger_mcts)
 
     def add_node(self, node):
         self.tree[node.id] = node
