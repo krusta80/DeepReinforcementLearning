@@ -4,9 +4,6 @@ import numpy as np
 import random
 
 import MCTS as mc
-from game import GameState
-from loss import softmax_cross_entropy_with_logits
-
 import config
 import loggers as lg
 import time

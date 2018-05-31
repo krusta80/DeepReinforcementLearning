@@ -18,7 +18,7 @@ from importlib import reload
 
 from keras.utils import plot_model
 
-from game import Game, GameState
+from game import Game
 from agent import Agent
 from memory import Memory
 from model import Residual_CNN

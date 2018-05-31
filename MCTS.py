@@ -1,134 +1,113 @@
 import numpy as np
-import logging
-import config
-
-from utils import setup_logger
+from config import ALPHA, EPSILON
 import loggers as lg
 
-class Node():
 
-	def __init__(self, state):
-		self.state = state
-		self.playerTurn = state.playerTurn
-		self.id = state.id
-		self.edges = []
+class Node:
+    def __init__(self, state):
+        self.state = state
+        self.children = []
+        self.stats = {
+            'N': 0,  # Number of visits to this node
+            'W': 0,  # Accumulated value of this node
+        }
 
-	def isLeaf(self):
-		if len(self.edges) > 0:
-			return False
-		else:
-			return True
+    def is_leaf(self):
+        return len(self.children) > 0
 
-class Edge():
-
-	def __init__(self, inNode, outNode, prior, action):
-		self.id = inNode.state.id + '|' + outNode.state.id
-		self.inNode = inNode
-		self.outNode = outNode
-		self.playerTurn = inNode.state.playerTurn
-		self.action = action
-
-		self.stats =  {
-					'N': 0,
-					'W': 0,
-					'Q': 0,
-					'P': prior,
-				}
-				
-
-class MCTS():
-
-	def __init__(self, root, cpuct):
-		self.root = root
-		self.tree = {}
-		self.cpuct = cpuct
-		self.addNode(root)
-	
-	def __len__(self):
-		return len(self.tree)
-
-	def moveToLeaf(self):
-
-		lg.logger_mcts.info('------MOVING TO LEAF------')
-
-		breadcrumbs = []
-		currentNode = self.root
-
-		done = 0
-		value = 0
-
-		while not currentNode.isLeaf():
-
-			lg.logger_mcts.info('PLAYER TURN...%d', currentNode.state.playerTurn)
-		
-			maxQU = -99999
-
-			if currentNode == self.root:
-				epsilon = config.EPSILON
-				nu = np.random.dirichlet([config.ALPHA] * len(currentNode.edges))
-			else:
-				epsilon = 0
-				nu = [0] * len(currentNode.edges)
-
-			Nb = 0
-			for action, edge in currentNode.edges:
-				Nb = Nb + edge.stats['N']
-
-			for idx, (action, edge) in enumerate(currentNode.edges):
-
-				U = self.cpuct * \
-					((1-epsilon) * edge.stats['P'] + epsilon * nu[idx] )  * \
-					np.sqrt(Nb) / (1 + edge.stats['N'])
-					
-				Q = edge.stats['Q']
-
-				lg.logger_mcts.info('action: %d (%d)... N = %d, P = %f, nu = %f, adjP = %f, W = %f, Q = %f, U = %f, Q+U = %f'
-					, action, action % 7, edge.stats['N'], np.round(edge.stats['P'],6), np.round(nu[idx],6), ((1-epsilon) * edge.stats['P'] + epsilon * nu[idx] )
-					, np.round(edge.stats['W'],6), np.round(Q,6), np.round(U,6), np.round(Q+U,6))
-
-				if Q + U > maxQU:
-					maxQU = Q + U
-					simulationAction = action
-					simulationEdge = edge
-
-			lg.logger_mcts.info('action with highest Q + U...%d', simulationAction)
-
-			newState, value, done = currentNode.state.takeAction(simulationAction) #the value of the newState from the POV of the new playerTurn
-			currentNode = simulationEdge.outNode
-			breadcrumbs.append(simulationEdge)
-
-		lg.logger_mcts.info('DONE...%d', done)
-
-		return currentNode, value, done, breadcrumbs
+    def add_child(self, action, node, probability):
+        self.children.append({
+            'action': action,
+            'node': node,
+            'P': probability
+        })
 
 
+class MCTS:
+    def __init__(self, root, cpuct):
+        self.root = root
+        self.tree = {}
+        self.cpuct = cpuct
+        self.add_node(root)
 
-	def backFill(self, leaf, value, breadcrumbs):
-		lg.logger_mcts.info('------DOING BACKFILL------')
+    def __len__(self):
+        return len(self.tree)
 
-		currentPlayer = leaf.state.playerTurn
+    def move_to_leaf(self):
+        lg.logger_mcts.info('------MOVING TO LEAF------')
+        current_node = self.root
+        path_to_leaf = [current_node]
 
-		for edge in breadcrumbs:
-			playerTurn = edge.playerTurn
-			if playerTurn == currentPlayer:
-				direction = 1
-			else:
-				direction = -1
+        while not current_node.is_leaf():
+            lg.logger_mcts.info('PLAYER TURN...%d', current_node.state.player_turn)
 
-			edge.stats['N'] = edge.stats['N'] + 1
-			edge.stats['W'] = edge.stats['W'] + value * direction
-			edge.stats['Q'] = edge.stats['W'] / edge.stats['N']
+            if current_node == self.root:
+                epsilon = EPSILON
+                nu = np.random.dirichlet([ALPHA] * len(current_node.children))
+            else:
+                epsilon = 0
+                nu = [0] * len(current_node.children)
 
-			lg.logger_mcts.info('updating edge with value %f for player %d... N = %d, W = %f, Q = %f'
-				, value * direction
-				, playerTurn
-				, edge.stats['N']
-				, edge.stats['W']
-				, edge.stats['Q']
-				)
+            chosen_child = self._get_chosen_child(current_node.children, self.cpuct, epsilon, nu)
+            new_state, value, done = current_node.state.take_action(chosen_child['action'])
+            current_node = chosen_child['node']
+            path_to_leaf.append(chosen_child['node'])
 
-			edge.outNode.state.render(lg.logger_mcts)
+        lg.logger_mcts.info('DONE...%d', done)
+        return current_node, value, done, path_to_leaf
 
-	def addNode(self, node):
-		self.tree[node.id] = node
+    def back_fill(self, leaf, value, path_to_leaf):
+        lg.logger_mcts.info('------DOING BACKFILL------')
+        current_player = leaf.state.player_turn
 
+        for i, (node) in path_to_leaf:
+            player_turn = node.state.player_turn
+            if player_turn == current_player:
+                direction = 1
+            else:
+                direction = -1
+
+            node.stats['N'] = node.stats['N'] + 1
+            node.stats['W'] = node.stats['W'] + value * direction
+
+            lg.logger_mcts.info('updating node with value %f for player %d... N = %d, W = %f, Q = %f'
+                                , value * direction
+                                , player_turn
+                                , node.stats['N']
+                                , node.stats['W']
+                                , node.stats['W'] / node.stats['N']
+                                )
+            if i > 0:
+                node.state.render(lg.logger_mcts)
+        leaf.state.render(lg.logger_mcts)
+
+    def add_node(self, node):
+        self.tree[node.id] = node
+
+    def _get_chosen_child(self, children, cpuct, epsilon, nu):
+        N_p = sum([child['node'].stats['N'] for child in children])
+        max_Q_plus_U = -99999
+        chosen_child = None
+
+        for i, (child) in enumerate(children):
+            action = child['action']
+            P_i, N_i, W_i, Q_i = self._get_child_stats(child)
+            U_i = cpuct * ((1 - epsilon) * P_i + epsilon * nu[i]) * np.sqrt(N_p) / (1 + N_i)
+
+            lg.logger_mcts.info(
+                'action: %d ... N = %d, P = %f, nu = %f, adjP = %f, W = %f, Q = %f, U = %f, Q+U = %f'
+                , action, N_i, np.round(P_i, 6), np.round(nu[i], 6),
+                ((1 - epsilon) * P_i + epsilon * nu[i])
+                , np.round(W_i, 6), np.round(Q_i, 6), np.round(U_i, 6), np.round(Q_i + U_i, 6))
+
+            if Q_i + U_i > max_Q_plus_U:
+                max_Q_plus_U = Q_i + U_i
+                chosen_child = child
+        lg.logger_mcts.info('action with highest Q + U...%d', chosen_child['action'])
+        return chosen_child
+
+    def _get_child_stats(self, child):
+        return child['P'], \
+               child['node'].stats['N'], \
+               child['node'].stats['W'], \
+               child['node'].stats['W'] / child['node'].stats['N']

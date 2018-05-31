@@ -3,7 +3,7 @@ import random
 
 import loggers as lg
 
-from game import Game, GameState
+from game import Game
 from model import Residual_CNN
 
 from agent import Agent, User
@@ -76,7 +76,7 @@ def playMatches(player1, player2, EPISODES, logger, turns_until_tau0, memory = N
             logger.info(player2.name + ' plays as X')
             logger.info('--------------')
 
-        env.gameState.render(logger)
+        env. .render(logger)
 
         while done == 0:
             turn = turn + 1
